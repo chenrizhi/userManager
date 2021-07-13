@@ -1,12 +1,13 @@
 package main
 
 import (
+	"crypto/md5"
 	"fmt"
+	"github.com/howeyc/gopass"
 	"os"
 	"strconv"
 	"strings"
-	"github.com/howeyc/gopass"
-	"crypto/md5"
+	"time"
 )
 
 const (
@@ -44,13 +45,16 @@ func login() bool {
 	return false
 }
 
-func printUser(user map[string]string) {
-	for k, v := range user {
-		fmt.Printf("%s: %s\n", k, v)
-	}
+func printUser(user user) {
+	fmt.Println("id:", user.id)
+	fmt.Println("name:", user.name)
+	fmt.Println("birthday:", user.birthday.Format("2006-01-02"))
+	fmt.Println("tel:", user.tel)
+	fmt.Println("address:", user.address)
+	fmt.Println("desc:", user.desc)
 }
 
-func searchUser(users map[int]map[string]string) {
+func searchUser(users map[int]*user) {
 	fmt.Println("用户查找说明：\n  > 根据用户ID查找：id=1\n  > 根据用户名查找：name=张三\n  > 根据电话号码查找：tel=18888888888")
 	in, err := inputString("请输入查找条件：")
 	if err != nil {
@@ -69,56 +73,70 @@ func searchUser(users map[int]map[string]string) {
 			fmt.Println("输入格式错误！error:", err)
 			return
 		}
-		printUser(users[inValueInt])
+		user := users[inValueInt]
+		if user != nil {
+			printUser(*user)
+		}
 	} else {
 		for _, user := range users {
-			if v, ok := user[inKey]; ok && v == inValue {
-				printUser(user)
+			inValueInt, err := strconv.Atoi(inValue)
+			if err != nil {
+				fmt.Println("输入格式错误！error:", err)
+				return
+			}
+			if v := user.id; v == inValueInt {
+				printUser(*user)
 			}
 		}
 	}
 }
 
-func addUser(users map[int]map[string]string) {
+func addUser(users map[int]*user) {
 	userId := getId(users)
 	name, _ := inputString("姓名：")
-	birthday, _ := inputString("生日（2000-01-01）：")
+	birthdayStr, _ := inputString("生日（2000-01-01）：")
+	birthday, err := time.Parse("2006-01-02", birthdayStr)
+	if err != nil {
+		fmt.Println(err)
+	}
 	tel, _ := inputString("电话：")
 	address, _ := inputString("住址：")
 	desc, _ := inputString("备注：")
-	users[userId] = map[string]string{
-		"id": strconv.Itoa(userId),
-		"name": name,
-		"birthday": birthday,
-		"tel": tel,
-		"address": address,
-		"desc": desc,
+	users[userId] = &user{
+		id: userId,
+		name: name,
+		birthday: birthday,
+		tel: tel,
+		address: address,
+		desc: desc,
 	}
 }
 
-func updateUser(users map[int]map[string]string) {
+func updateUser(users map[int]*user) {
 	in, _ := inputString("输入要更新的用户ID：")
-	if inInt, err := strconv.Atoi(in); err != nil {
+	inInt, err := strconv.Atoi(in)
+	if err != nil {
 		fmt.Println("输入错误， error:", err)
 		return
-	} else if user, ok := users[inInt]; ok {
-		name := user["name"]
-		birthday := user["birthday"]
-		tel := user["tel"]
-		address := user["address"]
-		desc := user["desc"]
+	} else if u, ok := users[inInt]; ok {
+		name := u.name
+		birthday := u.birthday
+		tel := u.tel
+		address := u.address
+		desc := u.desc
 		name, _ = inputString("姓名(" + name + ")：")
-		birthday, _ = inputString("生日(" + birthday + ")：")
+		birthdayStr, _ := inputString("生日(" + birthday.Format("2006-01-02") + ")：")
+		birthday, _ = time.Parse("2006-01-02", birthdayStr)
 		tel, _ = inputString("电话(" + tel + ")：")
 		address, _ = inputString("住址(" + address + ")：")
 		desc, _ = inputString("备注(" + desc + ")：")
-		users[inInt] = map[string]string{
-			"id": in,
-			"name": name,
-			"birthday": birthday,
-			"tel": tel,
-			"address": address,
-			"desc": desc,
+		users[inInt] = &user{
+			id: inInt,
+			name: name,
+			birthday: birthday,
+			tel: tel,
+			address: address,
+			desc: desc,
 		}
 	} else {
 		fmt.Println("用户ID不存在")
@@ -126,7 +144,7 @@ func updateUser(users map[int]map[string]string) {
 	}
 }
 
-func deleteUser(users map[int]map[string]string) {
+func deleteUser(users map[int]*user) {
 	in, _ := inputString("输入要删除的用户ID：")
 	if inInt, err := strconv.Atoi(in); err != nil {
 		fmt.Println("输入错误， error:", err)
@@ -149,9 +167,9 @@ func inputString(title string) (string, error) {
 	return strings.TrimSpace(input), err
 }
 
-func getId(users map[int]map[string]string) int {
+func getId(users map[int]*user) int {
 	var max = 1
-	for k, _ := range users {
+	for k := range users {
 		if k > max {
 			max = k
 		}
@@ -163,13 +181,13 @@ func main() {
 	if ! login() {
 		return
 	}
-	users := map[int]map[string]string{}
-	opMap := map[string]func(map[int]map[string]string){
+	users := map[int]*user{}
+	opMap := map[string]func(map[int]*user){
 		"1": searchUser,
 		"2": addUser,
 		"3": updateUser,
 		"4": deleteUser,
-		"5": func(m map[int]map[string]string) {
+		"5": func(m map[int]*user) {
 			os.Exit(0)
 		},
 	}
