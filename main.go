@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/csv"
 	"fmt"
 	"github.com/howeyc/gopass"
 	"os"
@@ -45,6 +46,68 @@ func login() bool {
 	return false
 }
 
+func loadCsv(file string) (map[int]*user, error) {
+	f, err := os.Open(file)
+	defer f.Close()
+	if err != nil {
+		fmt.Println("error:", err)
+		return nil, err
+	}
+	reader := csv.NewReader(f)
+	if _, err := reader.Read(); err != nil {
+		return nil, err
+	}
+	records, err := reader.ReadAll()
+	users := map[int]*user{}
+	for _, v := range records {
+		id, err := strconv.Atoi(v[0])
+		if err != nil {
+			fmt.Println("error:", err)
+			continue
+		}
+		name,address,tel,desc := v[1],v[3],v[4],v[5]
+		birthday, err := time.Parse("2006-01-02", v[2])
+		if err != nil {
+			fmt.Println("error:", err)
+			continue
+		}
+		users[id] = &user{
+			id: id,
+			name: name,
+			birthday: birthday,
+			address: address,
+			tel: tel,
+			desc: desc,
+		}
+	}
+	return users, err
+}
+
+func saveCsv(users map[int]*user, file string) error {
+	fmt.Println(users)
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	defer f.Close()
+	if err != nil {
+		return err
+	}
+	var records [][]string
+	records = append(records, []string{"id","name","birthday","address","tel","desc"})
+	for _, u := range users {
+		record := []string{
+			strconv.Itoa(u.id),
+			u.name,
+			u.birthday.Format("2006-01-02"),
+			u.address,
+			u.tel,
+			u.desc,
+		}
+		records = append(records, record)
+	}
+	writer := csv.NewWriter(f)
+	err = writer.WriteAll(records)
+	return err
+}
+
 func printUser(user user) {
 	fmt.Println("id:", user.id)
 	fmt.Println("name:", user.name)
@@ -67,7 +130,8 @@ func searchUser(users map[int]*user) {
 		return
 	}
 	inKey, inValue := strings.TrimSpace(inSplit[0]), strings.TrimSpace(inSplit[1])
-	if inKey == "id" {
+	switch inKey {
+	case "id":
 		inValueInt, err := strconv.Atoi(inValue)
 		if err != nil {
 			fmt.Println("输入格式错误！error:", err)
@@ -77,14 +141,15 @@ func searchUser(users map[int]*user) {
 		if user != nil {
 			printUser(*user)
 		}
-	} else {
+	case "name":
 		for _, user := range users {
-			inValueInt, err := strconv.Atoi(inValue)
-			if err != nil {
-				fmt.Println("输入格式错误！error:", err)
-				return
+			if user.name == inValue {
+				printUser(*user)
 			}
-			if v := user.id; v == inValueInt {
+		}
+	case "tel":
+		for _, user := range users {
+			if user.tel == inValue {
 				printUser(*user)
 			}
 		}
@@ -109,6 +174,10 @@ func addUser(users map[int]*user) {
 		tel: tel,
 		address: address,
 		desc: desc,
+	}
+	err = saveCsv(users, "user.csv")
+	if err != nil {
+		fmt.Println("error:", err)
 	}
 }
 
@@ -142,6 +211,10 @@ func updateUser(users map[int]*user) {
 		fmt.Println("用户ID不存在")
 		return
 	}
+	err = saveCsv(users, "user.csv")
+	if err != nil {
+		fmt.Println("error:", err)
+	}
 }
 
 func deleteUser(users map[int]*user) {
@@ -154,6 +227,10 @@ func deleteUser(users map[int]*user) {
 	} else {
 		fmt.Println("用户ID不存在")
 		return
+	}
+	err := saveCsv(users, "user.csv")
+	if err != nil {
+		fmt.Println("error:", err)
 	}
 }
 
@@ -168,20 +245,24 @@ func inputString(title string) (string, error) {
 }
 
 func getId(users map[int]*user) int {
-	var max = 1
+	var max = 0
 	for k := range users {
 		if k > max {
 			max = k
 		}
 	}
-	return max
+	return max + 1
 }
 
 func main() {
 	if ! login() {
 		return
 	}
-	users := map[int]*user{}
+	users, err := loadCsv("user.csv")
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
 	opMap := map[string]func(map[int]*user){
 		"1": searchUser,
 		"2": addUser,
