@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>首页</title>
+</head>
+<body>
+<form action="" method="POST">
+<div>
+    <label>姓名：</label>
+    <label><input type="text" name="name" value="{{ .Name }}"/></label>
+</div>
+<div>
+    <label>生日：</label>
+    <label><input type="text" name="birthday" value="{{ .Birthday }}"/></label>
+</div>
+<div>
+    <label>地址：</label>
+    <label><input type="text" name="address" value="{{ .Address }}"/></label>
+</div>
+<div>
+    <label>电话：</label>
+    <label><input type="text" name="tel" value="{{ .Tel }}"/></label>
+</div>
+<div>
+    <label>备注：</label>
+    <label><textarea name="desc">{{ .Desc }}</textarea></label>
+</div>
+    <div>
+        <label>密码：</label>
+        <label><input name="password"/></label>
+    </div>
+    <input type="submit" value="提交"/>
+</form>
+</body>
+</html>
