@@ -31,11 +31,11 @@ func AddAction(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 	u := user.User{
-		Name: request.FormValue("name"),
-		Address: request.FormValue("address"),
+		Name:     request.FormValue("name"),
+		Address:  request.FormValue("address"),
 		Birthday: request.FormValue("birthday"),
-		Tel: request.FormValue("tel"),
-		Desc: request.FormValue("desc"),
+		Tel:      request.FormValue("tel"),
+		Remarks:  request.FormValue("remarks"),
 		Password: request.FormValue("password"),
 	}
 	tpl := template.Must(template.New("add.tpl.html").ParseFiles("templates/add.tpl.html"))
@@ -45,7 +45,7 @@ func AddAction(writer http.ResponseWriter, request *http.Request) {
 			fmt.Println("error:", err)
 		}
 	} else if http.MethodPost == request.Method {
-		user.UpdateUser(u)
+		user.InsertUser(u)
 		http.Redirect(writer, request, "/", http.StatusFound)
 	}
 }
@@ -73,7 +73,7 @@ func ModifyAction(writer http.ResponseWriter, request *http.Request) {
 		u.Address = request.FormValue("address")
 		u.Birthday = request.FormValue("birthday")
 		u.Tel = request.FormValue("tel")
-		u.Desc = request.FormValue("desc")
+		u.Remarks = request.FormValue("remarks")
 		u.Password = request.FormValue("password")
 		user.UpdateUser(*u)
 		http.Redirect(writer, request, "/", http.StatusFound)

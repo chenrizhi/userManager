@@ -1,13 +1,15 @@
 package user
 
 import (
+	"awesomeProject/userManager/db"
 	"crypto/md5"
+	"database/sql"
 	"encoding/csv"
 	"encoding/hex"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"os"
 	"strconv"
-	"strings"
 )
 
 type User struct {
@@ -16,7 +18,7 @@ type User struct {
 	Birthday string
 	Tel      string
 	Address  string
-	Desc     string
+	Remarks  string
 	Password string
 }
 
@@ -59,7 +61,7 @@ func loadUsers(file string) (map[int]*User, error) {
 			fmt.Println("error:", err)
 			continue
 		}
-		name, birthday, address, tel, desc, password := v[1], v[2], v[3], v[4], v[5], v[6]
+		name, birthday, address, tel, remarks, password := v[1], v[2], v[3], v[4], v[5], v[6]
 
 		users[id] = &User{
 			Id:       id,
@@ -67,7 +69,7 @@ func loadUsers(file string) (map[int]*User, error) {
 			Birthday: birthday,
 			Address:  address,
 			Tel:      tel,
-			Desc:     desc,
+			Remarks:  remarks,
 			Password: password,
 		}
 	}
@@ -81,7 +83,7 @@ func saveUsers(users map[int]*User, file string) error {
 		return err
 	}
 	var records [][]string
-	records = append(records, []string{"id", "name", "birthday", "address", "tel", "desc", "password"})
+	records = append(records, []string{"id", "name", "birthday", "address", "tel", "remarks", "password"})
 	for _, u := range users {
 		record := []string{
 			strconv.Itoa(u.Id),
@@ -89,7 +91,7 @@ func saveUsers(users map[int]*User, file string) error {
 			u.Birthday,
 			u.Address,
 			u.Tel,
-			u.Desc,
+			u.Remarks,
 			u.Password,
 		}
 		records = append(records, record)
@@ -100,65 +102,70 @@ func saveUsers(users map[int]*User, file string) error {
 }
 
 func GetUser(userId int) *User {
-	users, err := loadUsers("user.csv")
-	if err != nil {
-		panic(err)
-	}
-
-	if user, ok := users[userId]; ok {
-		return user
-	} else {
+	row := db.Db.QueryRow("SELECT id,name,birthday,address,tel,remarks,password FROM users WHERE id = ?", userId)
+	if err := row.Err(); err != nil {
+		fmt.Println("get user failed, err:", err)
 		return nil
 	}
+	user := &User{}
+	if err := row.Scan(&user.Id, &user.Name, &user.Birthday, &user.Address, &user.Tel, &user.Remarks, &user.Password); err != nil {
+		fmt.Println("get user scan failed, err:", err)
+	}
+	return user
 }
 
 func GetUsers(args ...string) map[int]*User {
-	users, err := loadUsers("user.csv")
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if args == nil {
+		rows, err = db.Db.Query("SELECT id,name,birthday,address,tel,remarks,password FROM users")
+	} else {
+		search := args[0]
+		rows, err = db.Db.Query("SELECT id,name,birthday,address,tel,remarks,password FROM users WHERE id = ? OR name LIKE ?", search, "%"+search+"%")
+	}
+
 	if err != nil {
-		panic(err)
+		fmt.Println("get users failed, err:", err)
+		return nil
 	}
+	defer rows.Close()
 
-	if args != nil {
-		searchUsers := map[int]*User{}
-		for _, user := range users {
-			for _, arg := range args {
-				if strings.Contains(user.Name, arg) ||
-					strings.Contains(user.Tel, arg) ||
-					strings.Contains(user.Address, arg) ||
-					strings.Contains(user.Desc, arg) {
-					searchUsers[user.Id] = user
-				}
-			}
+	users := map[int]*User{}
+	for rows.Next() {
+		user := &User{}
+		if err := rows.Scan(&user.Id, &user.Name, &user.Birthday, &user.Address, &user.Tel, &user.Remarks, &user.Password); err != nil {
+			fmt.Println("get user scan failed, err:", err)
+			continue
 		}
-		return searchUsers
+		users[user.Id] = user
 	}
-
 	return users
 }
 
+func InsertUser(user User) {
+	_, err := db.Db.Exec("INSERT INTO users(name,birthday,address,tel,remarks,password) VALUES(?,?,?,?,?,?)",
+		user.Name, user.Birthday, user.Address, user.Tel, user.Remarks, md5Pass(user.Password))
+	if err != nil {
+		fmt.Println("insert user failed, err:", err)
+		return
+	}
+}
+
 func UpdateUser(user User) {
-	users, err := loadUsers("user.csv")
-	if err != nil {
-		panic(err)
+	if user.Password != "" {
+		user.Password = md5Pass(user.Password)
 	}
-	if user.Id == 0 {
-		user.Id = getId(users)
-	}
-	user.Password = md5Pass(user.Password)
-	users[user.Id] = &user
-	err = saveUsers(users, "user.csv")
+	_, err := db.Db.Exec("REPLACE INTO users(id,name,birthday,address,tel,remarks,password) VALUES(?,?,?,?,?,?,?)",
+		user.Id, user.Name, user.Birthday, user.Address, user.Tel, user.Remarks, user.Password)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("update user failed, err:", err)
 		return
 	}
 }
 
 func DeleteUser(userId int) error {
-	users, err := loadUsers("user.csv")
-	if err != nil {
-		return err
-	}
-	delete(users, userId)
-	err = saveUsers(users, "user.csv")
+	_, err := db.Db.Exec("DELETE FROM users WHERE id = ?", userId)
 	return err
 }
